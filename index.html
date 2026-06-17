@@ -79,6 +79,8 @@
         .btn-share:active { background-color: #7c3aed; }
         .btn-danger { background-color: #ef4444; margin-top: 10px; }
         .btn-danger:active { background-color: #dc2626; }
+        .btn-secondary { background-color: #4b5563; }
+        .btn-secondary:active { background-color: #374151; }
         .btn-sm { padding: 8px 12px; font-size: 14px; margin-top: 0; width: auto; }
         
         /* 專案模板區塊樣式 */
@@ -132,7 +134,10 @@
         <div class="profile-controls">
             <button class="btn btn-sm" onclick="saveAsNewProfile()">➕ 另存新模板</button>
             <button class="btn btn-warning btn-sm" onclick="renameProfile()">✏️ 重新命名</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteProfile()">🗑️ 刪除模板</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteProfile()">🗑️ 刪除</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportProfiles()">📤 匯出備份</button>
+            <button class="btn btn-success btn-sm" onclick="triggerImport()">📥 匯入還原</button>
+            <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="importProfiles(event)">
         </div>
     </div>
     
@@ -215,7 +220,6 @@
     let generatedCanvases = [];
     const inputFields = ['title', 'projectName', 'projectId', 'contractor', 'location', 'date', 'content', 'customField'];
 
-    // 專案模板相關變數
     const PROFILE_KEY = 'watermark_profiles_data_v2';
     const CURRENT_PROFILE_KEY = 'watermark_current_profile_v2';
     let profiles = {};
@@ -226,7 +230,6 @@
         updateDateToToday();
         updateAllDataLists();
         
-        // 監聽所有輸入，並自動儲存至當前模板
         inputFields.forEach(field => {
             document.getElementById(field).addEventListener('input', saveCurrentState);
             document.getElementById('check_' + field).addEventListener('change', saveCurrentState);
@@ -248,7 +251,6 @@
         if (stored) {
             profiles = JSON.parse(stored);
         } else {
-            // 預設提供兩個示範模板 (A案與B案)
             profiles = {
                 "預設專案A (臺大線路)": {
                     title: { value: "臺大總院-線路汰換", checked: true },
@@ -307,7 +309,7 @@
         if (state['customLabel'] !== undefined) {
             document.getElementById('customLabel').value = state['customLabel'];
         }
-        updateDateToToday(); // 切換模板時一律更新日期為今天
+        updateDateToToday();
     }
 
     function changeProfile() {
@@ -381,6 +383,66 @@
             applyProfileToForm(currentProfileName);
         }
     }
+
+    // ========== 新增：匯出與匯入功能核心邏輯 ==========
+    function exportProfiles() {
+        if (Object.keys(profiles).length === 0) {
+            alert("沒有可匯出的模板資料！");
+            return;
+        }
+        // 將模板物件轉為可下載的 JSON 字串
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(profiles, null, 2));
+        const downloadAnchor = document.createElement('a');
+        
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `工程相機模板備份_${dateStr}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    function triggerImport() {
+        document.getElementById('importFileInput').click();
+    }
+
+    function importProfiles(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                
+                // 基礎安全驗證：確保是物件且有內容
+                if (typeof importedData !== 'object' || importedData === null || Object.keys(importedData).length === 0) {
+                    throw new Error("格式不正確");
+                }
+
+                if (confirm(`偵測到備份檔案中含有 ${Object.keys(importedData).length} 個專案模板。\n是否確定匯入？\n(注意：若現有模板名稱重複，將會被覆蓋！)`)) {
+                    // 將新舊資料合併
+                    profiles = { ...profiles, ...importedData };
+                    localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+                    
+                    // 預設切換到匯入的第一個專案
+                    currentProfileName = Object.keys(importedData)[0];
+                    localStorage.setItem(CURRENT_PROFILE_KEY, currentProfileName);
+                    
+                    updateProfileDropdown();
+                    applyProfileToForm(currentProfileName);
+                    alert("🎉 模板匯入還原成功！");
+                }
+            } catch (err) {
+                alert("❌ 匯入失敗！檔案損壞或格式不符合工程相機模板。");
+                console.error(err);
+            }
+            event.target.value = ''; // 清空選擇，讓同檔案可以重複上傳
+        };
+        reader.readAsText(file);
+    }
     // ========== 專案模板管理結束 ==========
 
     function saveToHistory() {
@@ -431,7 +493,7 @@
         }
 
         saveToHistory();
-        saveCurrentState(); // 同步確保最後狀態寫入當前模板
+        saveCurrentState();
 
         const container = document.getElementById('results-container');
         container.innerHTML = '';
