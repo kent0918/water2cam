@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>工程相機浮水印小工具</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, '微軟正黑體';
+            background-color: #f3f4f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h2 { text-align: center; color: #1e3a8a; }
+        .form-group { margin-bottom: 15px; }
+        
+        .checkbox-label { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            margin-bottom: 5px; 
+            font-weight: bold; 
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        input::-webkit-calendar-picker-indicator {
+            opacity: 1;
+            cursor: pointer;
+        }
+        
+        /* 新增：讓自訂欄位排版並列的樣式 */
+        .flex-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .btn:active { background-color: #1d4ed8; }
+        .btn-success { background-color: #10b981; }
+        .btn-success:active { background-color: #059669; }
+        .btn-warning { background-color: #f59e0b; margin-top: 10px; }
+        .btn-warning:active { background-color: #d97706; }
+        .btn-share { background-color: #8b5cf6; margin-top: 10px; } 
+        .btn-share:active { background-color: #7c3aed; }
+        
+        #results-container {
+            margin-top: 20px;
+        }
+        .result-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .result-card canvas {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 6px;
+        }
+        .filename-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>工程浮水印產生器</h2>
+    
+    <div class="form-group">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px;">1. 選擇照片 (支援多選 / 直接拍照)</label>
+        <input type="file" id="imageInput" accept="image/*" multiple>
+    </div>
+
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_title" checked> 標題 (藍底)
+        </label>
+        <input type="text" id="title" value="臺大總院-線路汰換" list="list_title">
+        <datalist id="list_title"></datalist>
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_projectName" checked> 案名
+        </label>
+        <input type="text" id="projectName" value="網路線佈線汰換暨光纖線路及網路設備擴充案" list="list_projectName">
+        <datalist id="list_projectName"></datalist>
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_projectId" checked> 案號
+        </label>
+        <input type="text" id="projectId" value="PA2300949" list="list_projectId">
+        <datalist id="list_projectId"></datalist>
+    </div>
+    
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_contractor" checked> 施工單位
+        </label>
+        <input type="text" id="contractor" value="某某工程股份有限公司" list="list_contractor">
+        <datalist id="list_contractor"></datalist>
+    </div>
+
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_location" checked> 施工地點
+        </label>
+        <input type="text" id="location" value="東址研究棟9樓" list="list_location">
+        <datalist id="list_location"></datalist>
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_date" checked> 施工日期
+        </label>
+        <input type="text" id="date" value="" list="list_date">
+        <datalist id="list_date"></datalist>
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_content" checked> 施工內容
+        </label>
+        <input type="text" id="content" value="配管佈線作業" list="list_content">
+        <datalist id="list_content"></datalist>
+    </div>
+
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="check_customField" checked> 自訂欄位
+        </label>
+        <div class="flex-row">
+            <input type="text" id="customLabel" value="備註" placeholder="欄位名稱" style="flex: 1;">
+            <input type="text" id="customField" value="" list="list_customField" placeholder="欄位內容" style="flex: 2;">
+        </div>
+        <datalist id="list_customField"></datalist>
+    </div>
+
+    <button class="btn" onclick="processImages()">產生浮水印圖片</button>
+
+    <div id="results-container"></div>
+    <button class="btn btn-warning" id="batchDownloadBtn" style="display: none;" onclick="downloadAll()">批次下載全部照片</button>
+    <button class="btn btn-share" id="batchShareBtn" style="display: none;" onclick="shareAll()">批次分享全部照片 (LINE/雲端等)</button>
+</div>
+
+<script>
+    let generatedCanvases = [];
+    // 將 customField 加入追蹤陣列 (不含 customLabel，因其不需歷史下拉清單，稍後獨立儲存)
+    const inputFields = ['title', 'projectName', 'projectId', 'contractor', 'location', 'date', 'content', 'customField'];
+
+    window.onload = function() {
+        loadLastState();
+        
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        document.getElementById('date').value = `${yyyy}/${mm}/${dd}`;
+        
+        updateAllDataLists();
+        
+        inputFields.forEach(field => {
+            document.getElementById(field).addEventListener('input', saveCurrentState);
+            document.getElementById('check_' + field).addEventListener('change', saveCurrentState);
+        });
+        
+        // 額外監聽自訂標籤的輸入以利自動儲存
+        document.getElementById('customLabel').addEventListener('input', saveCurrentState);
+    };
+
+    function saveCurrentState() {
+        let currentState = {};
+        inputFields.forEach(field => {
+            currentState[field] = {
+                value: document.getElementById(field).value,
+                checked: document.getElementById('check_' + field).checked
+            };
+        });
+        // 獨立儲存自訂欄位的標籤名稱
+        currentState['customLabel'] = document.getElementById('customLabel').value;
+        localStorage.setItem('watermark_current_state', JSON.stringify(currentState));
+    }
+
+    function loadLastState() {
+        const savedState = localStorage.getItem('watermark_current_state');
+        if (savedState) {
+            try {
+                const parsedState = JSON.parse(savedState);
+                inputFields.forEach(field => {
+                    if (parsedState[field] !== undefined) {
+                        if (typeof parsedState[field] === 'string') {
+                            document.getElementById(field).value = parsedState[field];
+                        } else {
+                            document.getElementById(field).value = parsedState[field].value;
+                            document.getElementById('check_' + field).checked = parsedState[field].checked;
+                        }
+                    }
+                });
+                if (parsedState['customLabel'] !== undefined) {
+                    document.getElementById('customLabel').value = parsedState['customLabel'];
+                }
+            } catch (e) {
+                console.error("讀取狀態失敗", e);
+            }
+        }
+    }
+
+    function saveToHistory() {
+        inputFields.forEach(field => {
+            const val = document.getElementById(field).value.trim();
+            if (val !== "") {
+                let history = JSON.parse(localStorage.getItem(`history_${field}`)) || [];
+                history = history.filter(item => item !== val);
+                history.unshift(val);
+                if (history.length > 10) {
+                    history = history.slice(0, 10);
+                }
+                localStorage.setItem(`history_${field}`, JSON.stringify(history));
+            }
+        });
+        updateAllDataLists();
+    }
+
+    function updateAllDataLists() {
+        inputFields.forEach(field => {
+            const history = JSON.parse(localStorage.getItem(`history_${field}`)) || [];
+            const datalist = document.getElementById(`list_${field}`);
+            if (datalist) {
+                datalist.innerHTML = ''; 
+                history.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item;
+                    datalist.appendChild(option);
+                });
+            }
+        });
+    }
+
+    document.getElementById('imageInput').addEventListener('change', function(e){
+        document.getElementById('results-container').innerHTML = '';
+        document.getElementById('batchDownloadBtn').style.display = 'none';
+        document.getElementById('batchShareBtn').style.display = 'none';
+        generatedCanvases = [];
+    });
+
+    function processImages() {
+        const fileInput = document.getElementById('imageInput');
+        const files = fileInput.files;
+
+        if(files.length === 0) {
+            alert("請先選擇至少一張照片！");
+            return;
+        }
+
+        saveToHistory();
+        saveCurrentState();
+
+        const container = document.getElementById('results-container');
+        container.innerHTML = '';
+        generatedCanvases = [];
+        document.getElementById('batchDownloadBtn').style.display = 'none';
+        document.getElementById('batchShareBtn').style.display = 'none';
+
+        Array.from(files).forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    createWatermarkedCard(img, file.name, index);
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function createWatermarkedCard(img, originalFilename, index) {
+        const card = document.createElement('div');
+        card.className = 'result-card';
+
+        const fileLabel = document.createElement('div');
+        fileLabel.className = 'filename-label';
+        fileLabel.innerText = `檔案：${originalFilename}`;
+        card.appendChild(fileLabel);
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const MAX_SIZE = 1600;
+        let targetWidth = img.width;
+        let targetHeight = img.height;
+
+        if (targetWidth > MAX_SIZE || targetHeight > MAX_SIZE) {
+            if (targetWidth > targetHeight) {
+                targetHeight = Math.round((targetHeight * MAX_SIZE) / targetWidth);
+                targetWidth = MAX_SIZE;
+            } else {
+                targetWidth = Math.round((targetWidth * MAX_SIZE) / targetHeight);
+                targetHeight = MAX_SIZE;
+            }
+        }
+        
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+        const showTitle = document.getElementById('check_title').checked;
+        const titleText = document.getElementById('title').value;
+
+        let texts = [];
+        if (document.getElementById('check_projectName').checked) texts.push(`案名：${document.getElementById('projectName').value}`);
+        if (document.getElementById('check_projectId').checked) texts.push(`案號：${document.getElementById('projectId').value}`);
+        if (document.getElementById('check_contractor').checked) texts.push(`施工單位：${document.getElementById('contractor').value}`);
+        if (document.getElementById('check_location').checked) texts.push(`施工地點：${document.getElementById('location').value}`);
+        if (document.getElementById('check_date').checked) texts.push(`施工日期：${document.getElementById('date').value}`);
+        if (document.getElementById('check_content').checked) texts.push(`施工內容：${document.getElementById('content').value}`);
+        
+        // 新增：處理自訂欄位的字串組合
+        if (document.getElementById('check_customField').checked) {
+            const customLabel = document.getElementById('customLabel').value || '自訂';
+            const customValue = document.getElementById('customField').value;
+            texts.push(`${customLabel}：${customValue}`);
+        }
+
+        const scale = canvas.width / 1200;
+        const boxWidth = 650 * scale;
+        
+        const titleHeight = showTitle ? (70 * scale) : 0; 
+        const lineSpacing = 45 * scale;
+        
+        const paddingTop = texts.length > 0 ? (15 * scale) : 0;
+        const paddingBottom = texts.length > 0 ? (20 * scale) : 0;
+        
+        const titleFont = `bold ${Math.floor(32 * scale)}px sans-serif`;
+        const contentFont = `${Math.floor(28 * scale)}px sans-serif`;
+
+        ctx.font = contentFont;
+        let wrappedLines = [];
+        const maxTextWidth = boxWidth - (15 * scale);
+
+        texts.forEach(lineText => {
+            let currentLine = "";
+            for(let char of lineText) {
+                let testLine = currentLine + char;
+                let metrics = ctx.measureText(testLine);
+                if(metrics.width <= maxTextWidth) {
+                    currentLine = testLine;
+                } else {
+                    wrappedLines.push(currentLine);
+                    currentLine = char;
+                }
+            }
+            if(currentLine) wrappedLines.push(currentLine);
+        });
+
+        const contentHeight = paddingTop + (wrappedLines.length * lineSpacing) + paddingBottom;
+        const boxHeight = titleHeight + contentHeight;
+
+        if (boxHeight > 0) {
+            const startX = 0;
+            const startY = canvas.height - boxHeight;
+
+            if (showTitle) {
+                ctx.fillStyle = "rgba(0, 0, 150, 0.78)";
+                ctx.fillRect(startX, startY, boxWidth, titleHeight);
+
+                ctx.font = titleFont;
+                ctx.fillStyle = "white";
+                ctx.textBaseline = "middle";
+                let titleMetrics = ctx.measureText(titleText);
+                let titleX = startX + (boxWidth - titleMetrics.width) / 2;
+                let titleY = startY + (titleHeight / 2);
+                ctx.fillText(titleText, titleX, titleY);
+            }
+
+            if (contentHeight > 0) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.59)";
+                ctx.fillRect(startX, startY + titleHeight, boxWidth, contentHeight);
+
+                ctx.font = contentFont;
+                ctx.textBaseline = "top";
+                ctx.fillStyle = "white"; 
+                let currentY = startY + titleHeight + paddingTop;
+                let textX = startX + (5 * scale);
+
+                wrappedLines.forEach(line => {
+                    ctx.fillText(line, textX, currentY);
+                    currentY += lineSpacing;
+                });
+            }
+        }
+
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        const seqStr = String(index + 1).padStart(2, '0'); 
+        const dlFilename = `工程相機_${dateStr}_${seqStr}.jpg`;
+
+        generatedCanvases.push({ canvas: canvas, filename: dlFilename });
+
+        card.appendChild(canvas);
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'btn btn-success';
+        downloadBtn.innerText = '下載此照片';
+        downloadBtn.onclick = function() {
+            triggerDownload(canvas, dlFilename);
+        };
+        card.appendChild(downloadBtn);
+
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'btn btn-share';
+        shareBtn.innerText = '分享此照片 (LINE/雲端等)';
+        shareBtn.onclick = function() {
+            shareImage(canvas, dlFilename);
+        };
+        card.appendChild(shareBtn);
+
+        document.getElementById('results-container').appendChild(card);
+
+        if(generatedCanvases.length > 0) {
+            document.getElementById('batchDownloadBtn').style.display = 'block';
+            document.getElementById('batchShareBtn').style.display = 'block';
+        }
+    }
+
+    function triggerDownload(canvas, filename) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/jpeg', 0.85);
+        document.body.appendChild(link); 
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    async function shareImage(canvas, filename) {
+        canvas.toBlob(async function(blob) {
+            const file = new File([blob], filename, { type: 'image/jpeg' });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: '工程照片',
+                        text: '請查看工程照片附件'
+                    });
+                } catch (error) {
+                    console.log('使用者取消分享或發生錯誤:', error);
+                }
+            } else {
+                alert('您的裝置或瀏覽器不支援直接分享圖片功能，請先「下載」後再自行傳送！');
+            }
+        }, 'image/jpeg', 0.85);
+    }
+
+    function downloadAll() {
+        if(generatedCanvases.length === 0) return;
+        
+        let delay = 0;
+        generatedCanvases.forEach((item, index) => {
+            setTimeout(() => {
+                triggerDownload(item.canvas, item.filename);
+            }, delay);
+            delay += 300; 
+        });
+    }
+
+    async function shareAll() {
+        if (generatedCanvases.length === 0) return;
+
+        const testFile = new File([''], 'test.txt', { type: 'text/plain' });
+        if (!(navigator.canShare && navigator.canShare({ files: [testFile] }))) {
+            alert('您的裝置或瀏覽器不支援「批次」分享功能，請單張分享或改用「批次下載」！');
+            return;
+        }
+
+        try {
+            const filesToShare = await Promise.all(generatedCanvases.map(item => {
+                return new Promise((resolve) => {
+                    item.canvas.toBlob((blob) => {
+                        const file = new File([blob], item.filename, { type: 'image/jpeg' });
+                        resolve(file);
+                    }, 'image/jpeg', 0.85);
+                });
+            }));
+
+            if (navigator.canShare({ files: filesToShare })) {
+                await navigator.share({
+                    files: filesToShare,
+                    title: '工程照片批次分享',
+                    text: '請查看工程照片批次附件'
+                });
+            } else {
+                alert('照片數量或檔案大小超出了裝置的分享限制，請分批分享或改用「批次下載」！');
+            }
+        } catch (error) {
+            console.log('批次分享取消或發生錯誤:', error);
+        }
+    }
+</script>
+</body>
+</html>
