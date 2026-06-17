@@ -39,7 +39,7 @@
             margin: 0;
         }
 
-        input[type="text"], input[type="file"] {
+        input[type="text"], input[type="file"], select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
@@ -52,7 +52,6 @@
             cursor: pointer;
         }
         
-        /* 新增：讓自訂欄位排版並列的樣式 */
         .flex-row {
             display: flex;
             gap: 10px;
@@ -78,7 +77,25 @@
         .btn-warning:active { background-color: #d97706; }
         .btn-share { background-color: #8b5cf6; margin-top: 10px; } 
         .btn-share:active { background-color: #7c3aed; }
+        .btn-danger { background-color: #ef4444; margin-top: 10px; }
+        .btn-danger:active { background-color: #dc2626; }
+        .btn-sm { padding: 8px 12px; font-size: 14px; margin-top: 0; width: auto; }
         
+        /* 專案模板區塊樣式 */
+        .profile-section {
+            background-color: #eef2ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c7d2fe;
+        }
+        .profile-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
         #results-container {
             margin-top: 20px;
         }
@@ -108,6 +125,16 @@
 
 <div class="container">
     <h2>工程浮水印產生器</h2>
+
+    <div class="profile-section">
+        <label style="font-weight: bold; font-size: 14px; color: #3730a3; display: block; margin-bottom: 8px;">📂 專案模板選擇</label>
+        <select id="profileSelect" onchange="changeProfile()"></select>
+        <div class="profile-controls">
+            <button class="btn btn-sm" onclick="saveAsNewProfile()">➕ 另存新模板</button>
+            <button class="btn btn-warning btn-sm" onclick="renameProfile()">✏️ 重新命名</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteProfile()">🗑️ 刪除模板</button>
+        </div>
+    </div>
     
     <div class="form-group">
         <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px;">1. 選擇照片 (支援多選 / 直接拍照)</label>
@@ -186,65 +213,175 @@
 
 <script>
     let generatedCanvases = [];
-    // 將 customField 加入追蹤陣列 (不含 customLabel，因其不需歷史下拉清單，稍後獨立儲存)
     const inputFields = ['title', 'projectName', 'projectId', 'contractor', 'location', 'date', 'content', 'customField'];
 
+    // 專案模板相關變數
+    const PROFILE_KEY = 'watermark_profiles_data_v2';
+    const CURRENT_PROFILE_KEY = 'watermark_current_profile_v2';
+    let profiles = {};
+    let currentProfileName = "";
+
     window.onload = function() {
-        loadLastState();
+        loadProfilesData();
+        updateDateToToday();
+        updateAllDataLists();
         
+        // 監聽所有輸入，並自動儲存至當前模板
+        inputFields.forEach(field => {
+            document.getElementById(field).addEventListener('input', saveCurrentState);
+            document.getElementById('check_' + field).addEventListener('change', saveCurrentState);
+        });
+        document.getElementById('customLabel').addEventListener('input', saveCurrentState);
+    };
+
+    function updateDateToToday() {
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         document.getElementById('date').value = `${yyyy}/${mm}/${dd}`;
-        
-        updateAllDataLists();
-        
-        inputFields.forEach(field => {
-            document.getElementById(field).addEventListener('input', saveCurrentState);
-            document.getElementById('check_' + field).addEventListener('change', saveCurrentState);
-        });
-        
-        // 額外監聽自訂標籤的輸入以利自動儲存
-        document.getElementById('customLabel').addEventListener('input', saveCurrentState);
-    };
+    }
 
-    function saveCurrentState() {
-        let currentState = {};
+    // ========== 專案模板管理功能 ==========
+    function loadProfilesData() {
+        const stored = localStorage.getItem(PROFILE_KEY);
+        if (stored) {
+            profiles = JSON.parse(stored);
+        } else {
+            // 預設提供兩個示範模板 (A案與B案)
+            profiles = {
+                "預設專案A (臺大線路)": {
+                    title: { value: "臺大總院-線路汰換", checked: true },
+                    projectName: { value: "網路線佈線汰換暨光纖線路及網路設備擴充案", checked: true },
+                    projectId: { value: "PA2300949", checked: true },
+                    contractor: { value: "某某工程股份有限公司", checked: true },
+                    location: { value: "東址研究棟9樓", checked: true },
+                    date: { value: "", checked: true },
+                    content: { value: "配管佈線作業", checked: true },
+                    customField: { value: "", checked: true },
+                    customLabel: "備註"
+                },
+                "預設專案B (光纖建置)": {
+                    title: { value: "專案B-網路升級", checked: true },
+                    projectName: { value: "辦公區光纖線路及網路設備擴充案", checked: true },
+                    projectId: { value: "PA2400100", checked: true },
+                    contractor: { value: "懇懋科技股份有限公司", checked: true },
+                    location: { value: "資訊機房", checked: true },
+                    date: { value: "", checked: true },
+                    content: { value: "光纖熔接與測試", checked: true },
+                    customField: { value: "測試正常", checked: true },
+                    customLabel: "測試結果"
+                }
+            };
+        }
+
+        currentProfileName = localStorage.getItem(CURRENT_PROFILE_KEY) || Object.keys(profiles)[0];
+        if (!profiles[currentProfileName]) currentProfileName = Object.keys(profiles)[0];
+
+        updateProfileDropdown();
+        applyProfileToForm(currentProfileName);
+    }
+
+    function updateProfileDropdown() {
+        const select = document.getElementById('profileSelect');
+        select.innerHTML = '';
+        Object.keys(profiles).forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.innerText = name;
+            if (name === currentProfileName) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+
+    function applyProfileToForm(name) {
+        const state = profiles[name];
+        if (!state) return;
+        
         inputFields.forEach(field => {
-            currentState[field] = {
+            if (state[field] !== undefined) {
+                document.getElementById(field).value = state[field].value || "";
+                document.getElementById('check_' + field).checked = state[field].checked !== false;
+            }
+        });
+        if (state['customLabel'] !== undefined) {
+            document.getElementById('customLabel').value = state['customLabel'];
+        }
+        updateDateToToday(); // 切換模板時一律更新日期為今天
+    }
+
+    function changeProfile() {
+        currentProfileName = document.getElementById('profileSelect').value;
+        localStorage.setItem(CURRENT_PROFILE_KEY, currentProfileName);
+        applyProfileToForm(currentProfileName);
+    }
+
+    function getFormState() {
+        let state = {};
+        inputFields.forEach(field => {
+            state[field] = {
                 value: document.getElementById(field).value,
                 checked: document.getElementById('check_' + field).checked
             };
         });
-        // 獨立儲存自訂欄位的標籤名稱
-        currentState['customLabel'] = document.getElementById('customLabel').value;
-        localStorage.setItem('watermark_current_state', JSON.stringify(currentState));
+        state['customLabel'] = document.getElementById('customLabel').value;
+        return state;
     }
 
-    function loadLastState() {
-        const savedState = localStorage.getItem('watermark_current_state');
-        if (savedState) {
-            try {
-                const parsedState = JSON.parse(savedState);
-                inputFields.forEach(field => {
-                    if (parsedState[field] !== undefined) {
-                        if (typeof parsedState[field] === 'string') {
-                            document.getElementById(field).value = parsedState[field];
-                        } else {
-                            document.getElementById(field).value = parsedState[field].value;
-                            document.getElementById('check_' + field).checked = parsedState[field].checked;
-                        }
-                    }
-                });
-                if (parsedState['customLabel'] !== undefined) {
-                    document.getElementById('customLabel').value = parsedState['customLabel'];
-                }
-            } catch (e) {
-                console.error("讀取狀態失敗", e);
+    function saveCurrentState() {
+        if (!currentProfileName) return;
+        profiles[currentProfileName] = getFormState();
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+    }
+
+    function saveAsNewProfile() {
+        let newName = prompt("請輸入新專案模板的名稱：", "新專案" + (Object.keys(profiles).length + 1));
+        if (newName && newName.trim() !== "") {
+            newName = newName.trim();
+            if (profiles[newName]) {
+                alert("此名稱已存在，請使用其他名稱或直接修改該模板！");
+                return;
             }
+            profiles[newName] = getFormState();
+            currentProfileName = newName;
+            localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+            localStorage.setItem(CURRENT_PROFILE_KEY, currentProfileName);
+            updateProfileDropdown();
         }
     }
+
+    function renameProfile() {
+        let newName = prompt("請為當前模板輸入新的名稱：", currentProfileName);
+        if (newName && newName.trim() !== "" && newName.trim() !== currentProfileName) {
+            newName = newName.trim();
+            if (profiles[newName]) {
+                alert("此名稱已存在，請選擇其他名稱！");
+                return;
+            }
+            profiles[newName] = profiles[currentProfileName];
+            delete profiles[currentProfileName];
+            currentProfileName = newName;
+            localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+            localStorage.setItem(CURRENT_PROFILE_KEY, currentProfileName);
+            updateProfileDropdown();
+        }
+    }
+
+    function deleteProfile() {
+        if (Object.keys(profiles).length <= 1) {
+            alert("最少需要保留一個專案模板！");
+            return;
+        }
+        if (confirm(`確定要刪除「${currentProfileName}」這個模板嗎？`)) {
+            delete profiles[currentProfileName];
+            currentProfileName = Object.keys(profiles)[0];
+            localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+            localStorage.setItem(CURRENT_PROFILE_KEY, currentProfileName);
+            updateProfileDropdown();
+            applyProfileToForm(currentProfileName);
+        }
+    }
+    // ========== 專案模板管理結束 ==========
 
     function saveToHistory() {
         inputFields.forEach(field => {
@@ -294,7 +431,7 @@
         }
 
         saveToHistory();
-        saveCurrentState();
+        saveCurrentState(); // 同步確保最後狀態寫入當前模板
 
         const container = document.getElementById('results-container');
         container.innerHTML = '';
@@ -356,7 +493,6 @@
         if (document.getElementById('check_date').checked) texts.push(`施工日期：${document.getElementById('date').value}`);
         if (document.getElementById('check_content').checked) texts.push(`施工內容：${document.getElementById('content').value}`);
         
-        // 新增：處理自訂欄位的字串組合
         if (document.getElementById('check_customField').checked) {
             const customLabel = document.getElementById('customLabel').value || '自訂';
             const customValue = document.getElementById('customField').value;
